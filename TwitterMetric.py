@@ -13,7 +13,7 @@ import sys
 from bson.json_util import dumps
 
 __user_list__ = ["LilTunechi", "VanessaHudgens", "813286", "22412376", "268414482", "PutinRF", "rickykoter", "arrijabba"]
-num_historical_tweets_to_analyze = 100
+num_historical_tweets_to_analyze = 10
 
 
 consumer_key= "1uhm0XFRPSqqpFL3qH54Xe8qK"
@@ -35,6 +35,7 @@ db = None
 def print_status_stats(status_stats):
     print("///////////////////////////////////////////////////////////")
     print("Name: " + status_stats['twitter_handle'])
+    print("User ID: " + str(status_stats['user_id']))
     print("Average Post Time: " + status_stats['average_post_time'])
     print("Preferred App: " + status_stats['preferred_app'])
     print("Friends: " + str(status_stats['friends_count']))
@@ -65,7 +66,7 @@ def process_stream_status(status_in):
                 apps[s] += 1
 
             wrds = post['all_words_used_in_statuses']
-            split_text = [w for w in re.split('\W', unicode(status_in.text)) if w]
+            split_text = re.findall('\w+ ', unicode(status_in.text))
             for word in split_text:
                 if word not in wrds:
                     wrds[word] = 1
@@ -84,6 +85,7 @@ def process_stream_status(status_in):
             m, s = divmod(sec_avg, 60)
             h, m = divmod(m, 60)
             updated_post = {
+                "user_id": user.id,
                 "twitter_handle": post['twitter_handle'],
                 "friends_count": user.friends_count,
                 "followers_count": user.followers_count,
@@ -107,7 +109,7 @@ def process_stream_status(status_in):
                 apps[status_in['source']] += 1
 
             wrds = {}
-            split_text = [w for w in re.split('\W', unicode(status_in['text'])) if w]
+            split_text = re.findall('\w+ ', unicode(status_in.text))
             for word in split_text:
                 if word not in wrds:
                     wrds[word] = 1
@@ -119,6 +121,7 @@ def process_stream_status(status_in):
             m, s = divmod(sec_avg, 60)
             h, m = divmod(m, 60)
             updated_post = {
+                "user_id": user.id,
                 "twitter_handle": str(user.screen_name),
                 "friends_count": user.friend_count,
                 "followers_count": user.followers_count,
@@ -147,7 +150,7 @@ def process_status(status_in, user_account):
         sources[unicode(status_in.source)] = 1
     else:
         sources[unicode(status_in.source)] += 1
-    split_text = [w for w in re.split('\W', unicode(status_in.text)) if w]
+    split_text = re.findall('\w+ ', unicode(status_in.text))
     for word in split_text:
         if word not in words:
             words[word] = 1
@@ -171,6 +174,7 @@ def process_status(status_in, user_account):
     friends = user_account.friends_count
     followers = user_account.followers_count
     post = {
+        "user_id": user_account.id,
         "twitter_handle": str(user_handle),
         "friends_count": int(friends),
         "followers_count": int(followers),
@@ -196,7 +200,7 @@ class TweetListener(StreamListener):
         self.counter = 0
 
     def on_status(self, status):
-        if status.author.screen_name in __user_list__:
+        if status.author.screen_name in __user_list__ or  status.author.id in __user_list__:
             process_stream_status(status)
             self.counter += 1
         return
@@ -214,9 +218,6 @@ class TweetListener(StreamListener):
         print("Sleeping for 60s\n")
         time.sleep(60)
         return
-
-
-
 
 
 def main():
@@ -243,14 +244,16 @@ def main():
         user_account = api.get_user(user)
         user_accounts.append(user_account)
         ids.append(str(user_account.id))
-        statuses_past = tweepy.Cursor(api.user_timeline, id=user).items(num_historical_tweets_to_analyze)
+        statuses_past = tweepy.Cursor(api.user_timeline, id=user_account.screen_name).items(num_historical_tweets_to_analyze)
         t = None
         for status in statuses_past:
             process_status(status, user_account)
     for user in __user_list__:
-        stat = db['posts'].find_one({'twitter_handle': str(user)})
+        user_account = api.get_user(user)
+        stat = db['posts'].find_one({'twitter_handle': str(user_account.screen_name)})
         if stat:
             print_status_stats(stat)
+
     stream = tweepy.Stream(auth=api.auth, listener=TweetListener())
 
     try:
