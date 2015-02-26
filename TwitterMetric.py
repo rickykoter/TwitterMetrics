@@ -14,7 +14,7 @@ from bson.json_util import dumps
 __user_list__ = ["LilTunechi", "VanessaHudgens", "813286", "22412376", "268414482", "PutinRF"]
 # number of tweets to analyze into the user's past status
 #   twitter api does not allow pulling too many historical statuses at a time
-num_historical_tweets_to_analyze = 10
+num_historical_tweets_to_analyze = 100
 
 # Keys&tokens for twitter api application
 consumer_key = ""
@@ -155,8 +155,8 @@ def process_stream_status(status_in):
 
 ##############################################################
 # process_status(status_in, user_account)
-# This function takes a status and analyzes the contents synchronously
-# This requires global variable to be used to update stats, and after each status update the DB
+# This function takes a status and analyzes the contents
+# This requires global variable to be used to update stats sequentially, and after each status update the DB
 # Also if there are no entries in the DB for the given user a new entry is created with upsert = true
 # inputs: status_in is a status object Tweepy parses and creates from Twitter API
 #         user_account is the user account object for associated status
