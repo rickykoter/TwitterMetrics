@@ -55,7 +55,7 @@ def print_status_stats(status_stats):
 
 
 ##############################################################
-# print_status_stats(status_stats)
+# process_stream_status(status_in)
 # This function takes a status and analyzes the contents asynchronously
 # This allows for the DB to be queried to update current values, and
 # if there are no entries in the DB for the given user a new entry is created
@@ -154,11 +154,12 @@ def process_stream_status(status_in):
 
 
 ##############################################################
-# print_status_stats(status_stats)
+# process_status(status_in, user_account)
 # This function takes a status and analyzes the contents synchronously
 # This requires global variable to be used to update stats, and after each status update the DB
 # Also if there are no entries in the DB for the given user a new entry is created with upsert = true
 # inputs: status_in is a status object Tweepy parses and creates from Twitter API
+#         user_account is the user account object for associated status
 def process_status(status_in, user_account):
 
     user_handle = user_account.screen_name
