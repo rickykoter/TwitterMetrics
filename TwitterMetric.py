@@ -2,36 +2,43 @@ __author__ = 'RichardKotermanski'
 import pymongo
 import tweepy
 from tweepy import *
-from tweepy.parsers import ModelParser
 import re
 import operator
 import time
-import threading
 import json
 import logging
 import sys
 from bson.json_util import dumps
 
-__user_list__ = ["LilTunechi", "VanessaHudgens", "813286", "22412376", "268414482", "PutinRF", "rickykoter", "arrijabba"]
+# training set of user names, user ids, or ids of twitter users that will be analyzed
+__user_list__ = ["LilTunechi", "VanessaHudgens", "813286", "22412376", "268414482", "PutinRF"]
+# number of tweets to analyze into the user's past status
+#   twitter api does not allow pulling too many historical statuses at a time
 num_historical_tweets_to_analyze = 10
 
-
+# Keys&tokens for twitter api application
 consumer_key= "1uhm0XFRPSqqpFL3qH54Xe8qK"
 consumer_secret = "HsS0M2kCLf7DUo3XdmmQoNj8p4Smtg7aCe7ULbvRVoSUn88jaw"
 access_token= "853958474-yc7csayuDGZaKbUL6hBzmvZy3KA3Da7fHRklT2UF"
 access_token_secret = "iXBDDg4XyZ7gO8DVfbnDxP2bu2i8j7duaNdgNslgTixrB"
 
-extern_link_count = 0
-avg_time = 0.0
-status_count = 0.0
-sources = {}
-words = {}
-friends = 0
-followers = 0
-statuses_all = []
-db = None
+# global variables for historical tweet stats
+extern_link_count = 0   # the number of statuses that contain historical tweets
+avg_time = 0.0          # average time in GMT that a user posts tweet
+status_count = 0.0      # number of statuses analyzed
+sources = {}            # dictionary of source device/application used to create tweet and their counts
+words = {}              # dictionary of words used to in the text of all tweets and their counts
+friends = 0             # number of twitter friends
+followers = 0           # number of twitter followers
+statuses_all = []       # Jsonified list of all statuses that have been analyzed
+db = None               # DB object
 
 
+##############################################################
+# print_status_stats(status_stats)
+# This function prints the given statics for a user
+# in a format that is more readable in the terminal
+# inputs: status_stats is a dict retrieved from DB containing stats
 def print_status_stats(status_stats):
     print("///////////////////////////////////////////////////////////")
     print("Name: " + status_stats['twitter_handle'])
@@ -47,6 +54,12 @@ def print_status_stats(status_stats):
     print("///////////////////////////////////////////////////////////")
 
 
+##############################################################
+# print_status_stats(status_stats)
+# This function takes a status and analyzes the contents asynchronously
+# This allows for the DB to be queried to update current values, and
+# if there are no entries in the DB for the given user a new entry is created
+# inputs: status_in is a status object Tweepy parses and creates from Twitter API
 def process_stream_status(status_in):
     global db
     if db:
@@ -93,7 +106,6 @@ def process_stream_status(status_in):
                 "seconds_of_day_for_avg_time": sec_avg,
                 "top_ten_used_words": top_10_words,
                 "external_link_ratio": float(link_count)/float(len(statuses)),
-                "tweets_analyzed": int(status_count),
                 "preferred_app": unicode(most_used_source),
                 "all_words_used_in_statuses": wrds,
                 "all_apps_usage": apps,
@@ -129,7 +141,6 @@ def process_stream_status(status_in):
                 "seconds_of_day_for_avg_time": sec_avg,
                 "top_ten_used_words": top_10_words,
                 "external_link_ratio": float(extern_link_count),
-                "tweets_analyzed": int(status_count),
                 "preferred_app": unicode(most_used_source),
                 "all_words_used_in_statuses": wrds,
                 "all_apps_usage": apps,
@@ -142,7 +153,14 @@ def process_stream_status(status_in):
         print_status_stats(updated_post)
 
 
+##############################################################
+# print_status_stats(status_stats)
+# This function takes a status and analyzes the contents synchronously
+# This requires global variable to be used to update stats, and after each status update the DB
+# Also if there are no entries in the DB for the given user a new entry is created with upsert = true
+# inputs: status_in is a status object Tweepy parses and creates from Twitter API
 def process_status(status_in, user_account):
+
     user_handle = user_account.screen_name
     global extern_link_count, avg_time, words, sources, status_count, friends, followers, db, statuses_all
     statuses_all.append(dumps(status_in._json))
@@ -150,13 +168,13 @@ def process_status(status_in, user_account):
         sources[unicode(status_in.source)] = 1
     else:
         sources[unicode(status_in.source)] += 1
+
     split_text = re.findall('\w+ ', unicode(status_in.text))
     for word in split_text:
         if word not in words:
             words[word] = 1
         else:
             words[word] += 1
-
 
     m = re.search('((http|https):\/\/(?!www.twitter.com)[\w\.\/\-=?#]+)', status_in.text)
     if m and len(m.group(0)) > 0:
@@ -171,8 +189,10 @@ def process_status(status_in, user_account):
     avg_time /= status_count
     m, s = divmod(avg_time, 60)
     h, m = divmod(m, 60)
+
     friends = user_account.friends_count
     followers = user_account.followers_count
+
     post = {
         "user_id": user_account.id,
         "twitter_handle": str(user_handle),
@@ -182,7 +202,6 @@ def process_status(status_in, user_account):
         "seconds_of_day_for_avg_time": avg_time,
         "top_ten_used_words": top_10_words,
         "external_link_ratio": float(extern_link_count)/float(len(statuses_all)),
-        "tweets_analyzed": int(status_count),
         "preferred_app": unicode(most_used_source),
         "all_words_used_in_statuses": words,
         "all_apps_usage": sources,
@@ -194,6 +213,9 @@ def process_status(status_in, user_account):
         posts.update({'twitter_handle': user_handle}, {"$set": post}, upsert=True)
 
 
+##############################################################
+# Tweet Listener that listens for statuses and errors and ensures they are posted by user before
+# sending the status to be analyzed and permanent
 class TweetListener(StreamListener):
     def __init__(self):
         super(TweetListener, self).__init__()
@@ -220,8 +242,14 @@ class TweetListener(StreamListener):
         return
 
 
+##############################################################
+# main()
+# Sets up tweepy and Twitter authentification
+# connects to the database and collection
+# iterates through each user and fetches historical tweets for each one and analyzes them
+# prints contents stored in DB after all processed (Does not check for possible eventual consistency faults before query)
+# Sets up twitter connection stream for each user in the set to asynchronously monitor timelines for statuses
 def main():
-    # This handles Twitter authetification and the connection to Twitter Streaming API
     global api, db, extern_link_count, avg_time, status_count, sources, words, friends, followers, statuses_all
 
     user_accounts = []
@@ -245,7 +273,6 @@ def main():
         user_accounts.append(user_account)
         ids.append(str(user_account.id))
         statuses_past = tweepy.Cursor(api.user_timeline, id=user_account.screen_name).items(num_historical_tweets_to_analyze)
-        t = None
         for status in statuses_past:
             process_status(status, user_account)
     for user in __user_list__:
@@ -262,7 +289,5 @@ def main():
         print "Unexpected Streaming error:", sys.exc_info()[0], sys.exc_info()
         stream.disconnect()
 
-    for t in threads:
-        t.join()
 if __name__ == "__main__":
     main()
