@@ -17,10 +17,10 @@ __user_list__ = ["LilTunechi", "VanessaHudgens", "813286", "22412376", "26841448
 num_historical_tweets_to_analyze = 10
 
 # Keys&tokens for twitter api application
-consumer_key= "1uhm0XFRPSqqpFL3qH54Xe8qK"
-consumer_secret = "HsS0M2kCLf7DUo3XdmmQoNj8p4Smtg7aCe7ULbvRVoSUn88jaw"
-access_token= "853958474-yc7csayuDGZaKbUL6hBzmvZy3KA3Da7fHRklT2UF"
-access_token_secret = "iXBDDg4XyZ7gO8DVfbnDxP2bu2i8j7duaNdgNslgTixrB"
+consumer_key = ""
+consumer_secret = ""
+access_token = ""
+access_token_secret = ""
 
 # global variables for historical tweet stats
 extern_link_count = 0   # the number of statuses that contain historical tweets
